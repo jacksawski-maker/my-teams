@@ -124,8 +124,8 @@ document.getElementById("bell").onclick=function(){
   return fetch(WURL+"/key").then(function(x){return x.json()}).then(function(k){
    return r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(k.pub)})})
  }).then(function(s){
-  return fetch(WURL+"/subscribe",{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(s)})
- }).then(function(){setBell(true)}).catch(function(e){setBell(false);alert("Could not turn on notifications. Open the app from your Home Screen and try again.")})
+  return fetch(WURL+"/subscribe",{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(s)}).then(function(x){if(!x.ok)throw new Error("server "+x.status)})
+ }).then(function(){setBell(true)}).catch(function(e){setBell(false);alert("Could not turn on notifications: "+(e&&e.message?e.message:e))})
 };
 function check(){}
 try{if("serviceWorker" in navigator&&window.PushManager){navigator.serviceWorker.register("sw.js").then(function(){return navigator.serviceWorker.ready}).then(function(r){return r.pushManager.getSubscription()}).then(function(s){if(s){fetch(WURL+"/subscribe",{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(s)}).catch(function(){});setBell(true)}else setBell(false)}).catch(function(){})}}catch(e){}
