@@ -1,4 +1,4 @@
-const W = "WORKER_URL_HERE";
+const W = "https://my-teams-push.jacksawski.workers.dev";
 self.addEventListener("push", (e) => {
   e.waitUntil((async () => {
     let t = "My Teams", b = "Schedule update";

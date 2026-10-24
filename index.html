@@ -62,7 +62,7 @@ function mk(rows){return rows.map(function(g,i){return{id:i,k:g[0],d:new Date(g[
 var G=mk(RAW);
 var sel="ALL",on=false,sent={},open={};
 function ls(a,k,v){try{if(a=="g")return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
-on=ls("g","notif")=="1"&&window.Notification&&Notification.permission=="granted";
+on=ls("g","notif")=="1"&&!!window.Notification&&Notification.permission=="granted";
 try{sent=JSON.parse(ls("g","sent")||"{}")}catch(e){sent={}}
 function fmt(d,o){return d.toLocaleString([],o)}
 function q(g){var t=T[g.k];if(g.k=="DEN"||g.k=="COL")return g.h?g.o+" @ "+t.s:t.s+" @ "+g.o;return g.h?t.s+" vs "+g.o:g.o+" vs "+t.s}
@@ -108,17 +108,26 @@ document.addEventListener("click",function(e){
  var dc=e.target.closest(".dc");if(dc){selDay=dc.dataset.d;render();return}
  var g=e.target.closest(".g");if(g){var i=g.dataset.i;open[i]=!open[i];g.classList.toggle("o")}
 });
+var WURL="https://my-teams-push.jacksawski.workers.dev";
+function u8(b){var p="=".repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,"+").replace(/_/g,"/")),o=new Uint8Array(r.length);for(var i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o}
+function setBell(v){on=v;ls("s","notif",v?"1":"0");render()}
 document.getElementById("bell").onclick=function(){
- if(on){on=false;ls("s","notif","0");render();return}
- if(!window.Notification){alert("This browser does not support notifications.");return}
- Notification.requestPermission().then(function(p){on=p=="granted";ls("s","notif",on?"1":"0");render();if(on)check()}).catch(function(){})
+ if(!("serviceWorker" in navigator)||!window.PushManager||!window.Notification){alert("Add this app to your Home Screen and open it from there to turn on notifications.");return}
+ if(on){
+  navigator.serviceWorker.ready.then(function(r){return r.pushManager.getSubscription()}).then(function(s){if(s){fetch(WURL+"/unsubscribe",{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(s)}).catch(function(){});return s.unsubscribe()}}).catch(function(){}).then(function(){setBell(false)});
+  return}
+ var perm=Notification.requestPermission();
+ Promise.resolve(perm).then(function(p){
+  if(p!=="granted")throw new Error("denied");
+  return navigator.serviceWorker.register("sw.js")
+ }).then(function(){return navigator.serviceWorker.ready}).then(function(r){
+  return fetch(WURL+"/key").then(function(x){return x.json()}).then(function(k){
+   return r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(k.pub)})})
+ }).then(function(s){
+  return fetch(WURL+"/subscribe",{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(s)})
+ }).then(function(){setBell(true)}).catch(function(e){setBell(false);alert("Could not turn on notifications. Open the app from your Home Screen and try again.")})
 };
-function check(){
- if(!on)return;var now=Date.now();
- G.forEach(function(g){var dt=g.d-now,k="d"+g.id;
-  if(!g.tba&&dt>0&&dt<=24*3600e3&&!sent[k]){sent[k]=1;ls("s","sent",JSON.stringify(sent));
-   try{new Notification("Game tomorrow",{body:q(g)+" at "+fmt(g.d,{hour:"numeric",minute:"2-digit"})})}catch(e){}}})
-}
+function check(){}
 setInterval(function(){check();render()},60000);
 render();check();
 try{fetch("schedule.json?t="+Date.now()).then(function(r){return r.json()}).then(function(j){if(j&&j.games&&j.games.length){G=mk(j.games);if(j.breaks)BRK=j.breaks.map(function(r){var a=r[0].split("-"),b=r[1].split("-");return[new Date(+a[0],+a[1]-1,+a[2]),new Date(+b[0],+b[1]-1,+b[2])]});render();check()}}).catch(function(){})}catch(e){}
